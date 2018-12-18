@@ -1,0 +1,98 @@
+input[type=range][orient=vertical] {
+  writing-mode: bt-lr;
+  /* IE */
+  -webkit-appearance: slider-vertical;
+  /* WebKit */
+}
+.vid-player {
+  position: relative;
+  overflow: visible;
+  padding-bottom: 20px;
+}
+.vid-player .vid-controls {
+  position: absolute;
+  bottom: 0;
+  height: 20px;
+  left: 0;
+  width: 100%;
+  user-select: none;
+  white-space: nowrap;
+}
+.vid-player .vid-controls > * {
+  display: inline-block;
+  position: relative;
+  vertical-align: middle;
+  height: 12px;
+  min-width: 12px;
+}
+.vid-player .vid-controls .vid-btn {
+  font-size: 12px;
+  line-height: 12px;
+  width: 12px;
+  height: 12px;
+  margin-top: calc((20px - 12px) / 2);
+}
+.vid-player .vid-controls .vid-ctrl-play .vid-btn {
+  opacity: 0;
+  position: absolute;
+  left: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease-in;
+}
+.vid-player .vid-controls .vid-ctrl-track {
+  width: calc(100% - 140px);
+}
+.vid-player .vid-controls .vid-ctrl-bar {
+  position: absolute;
+  left: 0;
+  top: calc((20px - 3px) / 2);
+  width: 100%;
+  height: 3px;
+  background-color: #ddd;
+}
+.vid-player .vid-controls .vid-ctrl-thumb {
+  display: inline-block;
+  position: absolute;
+  left: 0;
+  top: calc((8px + 3px) / 2);
+  transition: left 100ms linear;
+  border-radius: 50%;
+  background: #20AE61;
+  pointer-events: none;
+  width: 8px;
+  height: 8px;
+}
+.vid-player .vid-controls .vid-ctrl-time {
+  width: 70px;
+  font-size: 14px;
+  text-align: center;
+  margin-left: calc(8px / 2);
+}
+.vid-player .vid-controls .vid-ctrl-vol .vid-ctrl-volume-input {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  width: 12px;
+  height: 120px;
+  transition: opacity 200ms ease-in;
+  opacity: 0;
+}
+.vid-player .vid-controls .vid-ctrl-vol:hover .vid-ctrl-volume-input,
+.vid-player .vid-controls .vid-ctrl-vol .vid-ctrl-volume-input:hover,
+.vid-player .vid-controls .vid-ctrl-vol .vid-ctrl-volume-input:active {
+  opacity: 1;
+}
+.vid-player.vid-playing .vid-ctrl-play .icon-pause,
+.vid-player.vid-paused .vid-ctrl-play .icon-play,
+.vid-player.vid-ended .vid-ctrl-play .icon-reload {
+  opacity: 1;
+  pointer-events: all;
+}
+.vid-player:not(.vid-muted) .vid-ctrl-vol .icon-volume,
+.vid-player.vid-muted .vid-ctrl-vol .icon-volume_mute {
+  display: inline-block;
+}
+.vid-player:not(.vid-muted) .vid-ctrl-vol .icon-volume_mute,
+.vid-player.vid-muted .vid-ctrl-vol .icon-volume {
+  display: none;
+}
