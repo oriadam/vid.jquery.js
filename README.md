@@ -1,5 +1,5 @@
 # vid.jquery.js
-simple video player wrapper that supports trimming the video
+jQuery video player that supports trimming the video
 
 dependencies:
 
