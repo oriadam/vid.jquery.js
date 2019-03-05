@@ -1,7 +1,48 @@
-(function ($, window, undefined)
+/* video player
+Usage: $('<div>').vid({src: 'http://example.com/example.mp4', context_menu: false, trim_timeline: true, video_start_time: 10, video_end_time: 300});
+Available functions:
+$elem.vid('play');
+$elem.vid('stop');
+$elem.vid('rerun');
+$elem.vid('toggle');
+$elem.vid('volume',0.5);
+
+*/
+;(function ($, window, undefined)
 {
 	"use strict";
-	var pluginName = 'vid',
+	let tpl = {
+		zero_pad_number: function (number)
+		{
+			if (('' + number).length === 1)
+				return '0' + number;
+			else
+				return number;
+		},
+
+		time2seconds: function (time)
+		{
+			if (!/:/.test(time))
+				return +time;
+			time = time.split(':');
+			while (time.length < 3)
+				time.unshift(0);
+			return (+time[0] * 60 * 60 || 0) + (+time[1] * 60 || 0) + (+time[2] || 0);
+		},
+
+		seconds2time: function (seconds, h_mandatory)
+		{
+			seconds = tpl.time2seconds(seconds);
+			let h = Math.floor(seconds / 3600);
+			if (h_mandatory)
+				h = tpl.zero_pad_number(h);
+			let m = Math.floor((seconds % 3600) / 60);
+			let s = Math.floor(seconds) % 60;
+			return (h ? h + ':' : '') + tpl.zero_pad_number(m) + ':' + tpl.zero_pad_number(s);
+		},
+	};
+	
+	let pluginName = 'vid',
 		$el, $vid, vid, $controls, $track, $bar, $thumb, $vol,
 		track_bg_unloaded = '#ddd', // from vid.jquery.less @track_bg_unloaded
 		track_bg_loaded = '#20AE61', // from vid.jquery.less @track_bg_loaded
@@ -14,35 +55,6 @@
 			context_menu: true, // allow context menu
 		};
 
-	function zero_pad_number(number)
-	{
-		if (('' + number).length === 1)
-			return '0' + number;
-		else
-			return number;
-	}
-
-	function time2seconds(time)
-	{
-		if (!/:/.test(time))
-			return +time;
-		time = time.split(':');
-		while (time.length < 3)
-			time.unshift(0);
-		return (+time[0] * 60 * 60 || 0) + (+time[1] * 60 || 0) + (+time[2] || 0);
-	}
-	
-	function seconds2time(seconds, h_mandatory)
-	{
-		seconds = time2seconds(seconds);
-		var h = Math.floor(seconds / 3600);
-		if (h_mandatory)
-			h = zero_pad_number(h);
-		var m = Math.floor((seconds % 3600) / 60);
-		var s = Math.floor(seconds) % 60;
-		return (h ? h + ':' : '') + zero_pad_number(m) + ':' + zero_pad_number(s);
-	}
-
 	// The actual plugin constructor
 	function Plugin(element, _options)
 	{
@@ -52,40 +64,34 @@
 		this.init();
 	}
 
-	function startPlay()
+	Plugin.prototype.play = function ()
 	{
 		vid.play();
-	}
+	};
 
-	function rePlay()
+	Plugin.prototype.rerun = function ()
 	{
 		vid.currentTime = options.trim_start;
-		startPlay();
-	}
+		this.play();
+	};
 
 	function onPlay()
 	{
 		if (vid.currentTime < options.trim_start)
 			vid.currentTime = options.trim_start;
 		if (options.trim_end && vid.currentTime > options.trim_end)
-			stopPlay();
+			this.stop();
 		$el.addClass('vid-playing').removeClass('vid-paused vid-ended');
-		setTimeout(function ()
-		{
-			if (!vid.paused)
-				vid.scrollIntoView();
-		}, 100);
-
 	}
 
 	function onTimeupdate()
 	{
-		var current = Math.max(0, vid.currentTime - options.trim_start);
-		var ratio = Math.min(1, Math.max(0, current / calculate_duration()));
-		$controls.find('.vid-ctrl-time').html(seconds2time(current, true));
+		let current = Math.max(0, vid.currentTime - options.trim_start);
+		let ratio = Math.min(1, Math.max(0, current / calculate_duration()));
+		$controls.find('.vid-ctrl-time').html(tpl.seconds2time(current, true));
 		if (options.trim_end && vid.currentTime >= options.trim_end)
 		{
-			stopPlay();
+			this.stop();
 			$vid.trigger('ended');
 		}
 		$thumb.css('left', 'calc(' + (ratio * 100) + '% - ' + (($thumb.width() / 2) * ratio) + 'px )');
@@ -99,7 +105,7 @@
 		if (options.auto_play && vid.readyState == 4 && vid.paused)
 			vid.play();
 		$controls.width($vid.width());
-		var ctrl_width = 12;
+		let ctrl_width = 12;
 		$controls.find('>div:not(.vid-ctrl-track)').each(function(){
 			ctrl_width += $(this).outerWidth(true);
 		});
@@ -111,15 +117,15 @@
 		$el.removeClass('vid-playing vid-ended').addClass('vid-paused');
 	}
 
-	function stopPlay()
+	Plugin.prototype.stop = function ()
 	{
 		if (vid.readyState == 4)
 			vid.pause();
-	}
+	};
 
-	function togglePlay()
+	Plugin.prototype.toggle = function ()
 	{
-		vid.paused ? startPlay() : stopPlay();
+		vid.paused ? this.play() : this.stop();
 	}
 
 	function onEnded(e)
@@ -134,7 +140,7 @@
 
 	function seek(whereto)
 	{
-		var playing = !vid.paused;
+		let playing = !vid.paused;
 		if (Math.abs(vid.currentTime - whereto) > 0.1)
 		{
 			if (vid.readyState == 4) vid.pause();
@@ -152,7 +158,7 @@
 		switch (e.keyCode)
 		{
 			case 32: // spacebar
-				togglePlay();
+				this.toggle();
 				e.preventDefault(); // without this the screen scrolls
 				break;
 			case 39: // right arrow
@@ -166,10 +172,19 @@
 		}
 	}
 
+	Plugin.prototype.volume = function (val)
+	{
+		if (val !== undefined)
+		{
+			vid.volume = val;
+			$el.toggleClass('vid-muted', !vid.volume);
+		}
+		return vid.volume;
+	};
+
 	function onVolumeChange()
 	{
-		vid.volume = $vol.val();
-		$el.toggleClass('vid-muted', !vid.volume);
+		this.volume($vol.val());
 	}
 
 	function calculate_duration()
@@ -188,9 +203,9 @@
 
 	function onTrackMove(e)
 	{
-		var relative_time = calculate_relative_time(e);
-		var title_left = e.offsetX + $track.offset().left;
-		$('.blsm-title-box').css({left: title_left - 17, right: ''}).find('>div').html(seconds2time(relative_time));
+		let relative_time = calculate_relative_time(e);
+		let title_left = e.offsetX + $track.offset().left;
+		$('.blsm-title-box').css({left: title_left - 17, right: ''}).find('>div').html(tpl.seconds2time(relative_time));
 	}
 
 	function onTrackUp(e)
@@ -200,18 +215,18 @@
 
 	function onProgress()
 	{
-		var gradient = ['to right'];
-		var duration = calculate_duration();
-		for (var i = 0; i < vid.buffered.length; i++)
+		let gradient = ['to right'];
+		let duration = calculate_duration();
+		for (let i = 0; i < vid.buffered.length; i++)
 		{
-			var relative_start = Math.max(0, vid.buffered.start(i) - options.trim_start);
-			var relative_end = vid.buffered.end(i) - options.trim_start;
+			let relative_start = Math.max(0, vid.buffered.start(i) - options.trim_start);
+			let relative_end = vid.buffered.end(i) - options.trim_start;
 			if (relative_end > 0)
 			{
 				if (options.trim_end)
 					relative_end = Math.min(options.trim_end, relative_end);
-				var from = ' ' + (relative_start * 100 / duration) + '%';
-				var to = ' ' + (relative_end * 100 / duration) + '%';
+				let from = ' ' + (relative_start * 100 / duration) + '%';
+				let to = ' ' + (relative_end * 100 / duration) + '%';
 				gradient.push(
 					track_bg_unloaded + from,
 					track_bg_loaded + from,
@@ -224,6 +239,7 @@
 
 	Plugin.prototype.init = function ()
 	{
+		let _this = this;
 		$vid = $('<video></video>').appendTo($el);
 		vid = $vid[0];
 		$controls = $('<div class="vid-controls">\
@@ -236,10 +252,10 @@
 		$bar = $controls.find('.vid-ctrl-bar');
 		$thumb = $controls.find('.vid-ctrl-thumb');
 		$vol = $controls.find('.vid-ctrl-volume-input');
-		var media_fragment_rx = /#t=([\d:.]+)(?:,([\d:.]+))?/;
+		let media_fragment_rx = /#t=([\d:.]+)(?:,([\d:.]+))?/;
 		if (media_fragment_rx.test(options.src))
 		{
-			var media_fragments = options.src.match(media_fragment_rx);
+			let media_fragments = options.src.match(media_fragment_rx);
 			options.video_start_time = tpl.time2seconds(media_fragments[1]) || 0;
 			options.video_end_time = tpl.time2seconds(media_fragments[2]) || undefined;
 			options.src = options.src.replace(media_fragment_rx, '');
@@ -247,34 +263,34 @@
 		options.trim_start = tpl.time2seconds(options.video_start_time) || 0;
 		options.trim_end = tpl.time2seconds(options.video_end_time);
 		$vid.attr('src', options.src)
-			.on('click', togglePlay)
-			.on('pause', onPause)
-			.on('play', onPlay)
-			.on('ended', onEnded)
-			.on('canplay canplaythrough', onCanplay)
-		// .on('seeked timeupdate', onTimeupdate)  	// moved to interval
-		// .on('progress', onProgress) 				// moved to interval
+			.on('click', $.proxy(this.toggle, this))
+			.on('pause', $.proxy(onPause, this))
+			.on('play', $.proxy(onPlay, this))
+			.on('ended', $.proxy(onEnded, this))
+			.on('canplay canplaythrough', $.proxy(onCanplay, this))
+		// .on('seeked timeupdate', $.proxy(onTimeupdate, this))  	// moved to interval
+		// .on('progress', $.proxy(onProgress, this)) 				// moved to interval
 		;
 		if (!options.context_menu)
 			$vid.on('contextmenu', function(e) {
 				e.preventDefault();
 			});
-		var $play = $controls.find('.vid-ctrl-play');
-		$play.find('.icon-pause').click(stopPlay);
-		$play.find('.icon-play').click(startPlay);
-		$play.find('.icon-reload').click(rePlay);
-		$vol.change(onVolumeChange);
-		$track.on('mousedown', onTrackDown).on('mousemove mouseover', onTrackMove).on('mouseup', onTrackUp);
-		$(window).on('keydown', onKey);
+		let $play = $controls.find('.vid-ctrl-play');
+		$play.find('.icon-pause').click($.proxy(this.stop, this));
+		$play.find('.icon-play').click($.proxy(this.play, this));
+		$play.find('.icon-reload').click($.proxy(this.rerun, this));
+		$vol.change($.proxy(onVolumeChange, this));
+		$track.on('mousedown', $.proxy(onTrackDown, this)).on('mousemove mouseover', $.proxy(onTrackMove, this)).on('mouseup', $.proxy(onTrackUp, this));
+		$(window).on('keydown', $.proxy(onKey, this));
 		$el.addClass('vid-player vid-paused');
-		var interval = setInterval(function ()
+		let interval = setInterval(function ()
 		{
 			if (!$vid || !$vid.parent())
 				return clearInterval(interval);
 			if (!$vid.is(':visible'))
 				return;
-			onProgress();
-			onTimeupdate();
+			onProgress.call(_this);
+			onTimeupdate.call(_this);
 		}, 100);
 		onTimeupdate();
 	};
@@ -283,11 +299,11 @@
 	// preventing against multiple instantiations
 	$.fn[pluginName] = function (options)
 	{
-		var args = arguments;
-		var res;
+		let args = arguments;
+		let res;
 		this.each(function ()
 		{
-			var plgn = $.data(this, pluginName);
+			let plgn = $.data(this, pluginName);
 			if (!plgn)
 				$.data(this, pluginName, new Plugin(this, options));
 			else if (typeof options == 'string' && (options in Plugin.prototype))
@@ -298,5 +314,5 @@
 		});
 		return res === undefined ? this : res;
 	};
-	
+
 }(jQuery, window));
