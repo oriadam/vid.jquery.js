@@ -11,6 +11,7 @@ $elem.vid('volume',0.5);
 ;(function ($, window, undefined)
 {
 	"use strict";
+
 	let tpl = {
 		zero_pad_number: function (number)
 		{
@@ -41,70 +42,84 @@ $elem.vid('volume',0.5);
 			return (h ? h + ':' : '') + tpl.zero_pad_number(m) + ':' + tpl.zero_pad_number(s);
 		},
 	};
-	
-	let pluginName = 'vid',
-		$el, $vid, vid, $controls, $track, $bar, $thumb, $vol,
-		track_bg_unloaded = '#ddd', // from vid.jquery.less @track_bg_unloaded
-		track_bg_loaded = '#20AE61', // from vid.jquery.less @track_bg_loaded
-		options,
+
+	var pluginName = 'vid',
 		defaults = {
+			track_bg_unloaded: '#ddd', // from vid.jquery.less @track_bg_unloaded
+			track_bg_loaded: '#20AE61', // from vid.jquery.less @track_bg_loaded
 			src: undefined, // mandatory - src of the video
 			trim_timeline: true, // when trim is active, show the timeline and current time of video relative to the trimmed section
 			video_start_time: undefined, // trim
 			video_end_time: undefined, // trim
 			context_menu: true, // allow context menu
+			minWidth: 300,
+			auto_play: undefined,
+			audio: undefined, // use <audio> instead of <video>
+			audio_equalizer: true,
+			audio_equalizer_bars: 10
 		};
 
 	// The actual plugin constructor
 	function Plugin(element, _options)
 	{
-		$el = $(element);
-		options = $.extend({}, defaults, _options);
+		this.$el = $(element);
+		this.options = $.extend({}, defaults, _options);
 		this._name = pluginName;
 		this.init();
 	}
 
 	Plugin.prototype.play = function ()
 	{
+		let vid = this.$vid[0];
 		vid.play();
 	};
 
 	Plugin.prototype.rerun = function ()
 	{
+		let options = this.options;
+		let vid = this.$vid[0];
 		vid.currentTime = options.trim_start;
 		this.play();
 	};
 
 	function onPlay()
 	{
+		let options = this.options;
+		let vid = this.$vid[0];
 		if (vid.currentTime < options.trim_start)
 			vid.currentTime = options.trim_start;
 		if (options.trim_end && vid.currentTime > options.trim_end)
 			this.stop();
-		$el.addClass('vid-playing').removeClass('vid-paused vid-ended');
+		this.$el.addClass('vid-playing').removeClass('vid-paused vid-ended');
 	}
 
 	function onTimeupdate()
 	{
+		let options = this.options;
+		let vid = this.$vid[0];
 		let current = Math.max(0, vid.currentTime - options.trim_start);
-		let ratio = Math.min(1, Math.max(0, current / calculate_duration()));
-		$controls.find('.vid-ctrl-time').html(tpl.seconds2time(current, true));
+		let ratio = Math.min(1, Math.max(0, current / calculate_duration.call(this)));
+		this.$el.find('.vid-ctrl-time').html(tpl.seconds2time(current, true));
 		if (options.trim_end && vid.currentTime >= options.trim_end)
 		{
 			this.stop();
-			$vid.trigger('ended');
+			this.$vid.trigger('ended');
 		}
+		let $thumb = this.$el.find('.vid-ctrl-thumb');
 		$thumb.css('left', 'calc(' + (ratio * 100) + '% - ' + (($thumb.width() / 2) * ratio) + 'px )');
 	}
 
 	function onCanplay()
 	{
+		let options = this.options;
+		let vid = this.$vid[0];
 		if (vid.currentTime < options.trim_start)
 			vid.currentTime = options.trim_start;
-		$vol.val(vid.volume);
+		this.$el.find('.vid-ctrl-volume-input').val(vid.volume);
 		if (options.auto_play && vid.readyState == 4 && vid.paused)
 			vid.play();
-		$controls.width($vid.width());
+		let $controls = this.$el.find('.vid-controls');
+		$controls.width(Math.max(this.$vid.width(), this.options.minWidth));
 		let ctrl_width = 12;
 		$controls.find('>div:not(.vid-ctrl-track)').each(function(){
 			ctrl_width += $(this).outerWidth(true);
@@ -114,23 +129,25 @@ $elem.vid('volume',0.5);
 
 	function onPause()
 	{
-		$el.removeClass('vid-playing vid-ended').addClass('vid-paused');
+		this.$el.removeClass('vid-playing vid-ended').addClass('vid-paused');
 	}
 
 	Plugin.prototype.stop = function ()
 	{
+		let vid = this.$vid[0];
 		if (vid.readyState == 4)
 			vid.pause();
 	};
 
 	Plugin.prototype.toggle = function ()
 	{
+		let vid = this.$vid[0];
 		vid.paused ? this.play() : this.stop();
-	}
+	};
 
 	function onEnded(e)
 	{
-		$el.removeClass('vid-playing vid-paused').addClass('vid-ended');
+		this.$el.removeClass('vid-playing vid-paused').addClass('vid-ended');
 	}
 
 	function seek_relative(span)
@@ -140,6 +157,7 @@ $elem.vid('volume',0.5);
 
 	function seek(whereto)
 	{
+		let vid = this.$vid[0];
 		let playing = !vid.paused;
 		if (Math.abs(vid.currentTime - whereto) > 0.1)
 		{
@@ -148,12 +166,12 @@ $elem.vid('volume',0.5);
 			if (playing)
 				vid.play();
 		}
-		$el.removeClass('vid-ended').toggleClass('vid-playing', playing).toggleClass('vid-paused', !playing);
+		this.$el.removeClass('vid-ended').toggleClass('vid-playing', playing).toggleClass('vid-paused', !playing);
 	}
 
 	function onKey(e)
 	{
-		if (!$vid.is(':visible'))
+		if (!this.$vid.is(':visible'))
 			return;
 		switch (e.keyCode)
 		{
@@ -174,27 +192,30 @@ $elem.vid('volume',0.5);
 
 	Plugin.prototype.volume = function (val)
 	{
+		let vid = this.$vid[0];
 		if (val !== undefined)
 		{
 			vid.volume = val;
-			$el.toggleClass('vid-muted', !vid.volume);
+			this.$el.toggleClass('vid-muted', !vid.volume);
 		}
 		return vid.volume;
 	};
 
 	function onVolumeChange()
 	{
-		this.volume($vol.val());
+		this.volume(this.$el.find('.vid-ctrl-volume-input').val());
 	}
 
 	function calculate_duration()
 	{
+		let options = this.options;
+		let vid = this.$vid[0];
 		return (options.trim_end || vid.duration) - options.trim_start;
 	}
 
 	function calculate_relative_time(e)
 	{
-		return (e.offsetX / $(e.currentTarget).width() * calculate_duration());
+		return (e.offsetX / $(e.currentTarget).width() * calculate_duration.call(this));
 	}
 
 	function onTrackDown(e)
@@ -203,20 +224,26 @@ $elem.vid('volume',0.5);
 
 	function onTrackMove(e)
 	{
-		let relative_time = calculate_relative_time(e);
-		let title_left = e.offsetX + $track.offset().left;
-		$('.blsm-title-box').css({left: title_left - 17, right: ''}).find('>div').html(tpl.seconds2time(relative_time));
+		let $track = this.$el.find('.vid-ctrl-track');
+		let relative_time = calculate_relative_time.call(this, e);
+		let $tooltip = $track.find('.vid-ctrl-tooltip');
+		if (relative_time >= 0 && e.offsetX)
+			$tooltip.css('left', e.offsetX).html(tpl.seconds2time(relative_time)).show();
+		else
+			$tooltip.hide();
 	}
 
 	function onTrackUp(e)
 	{
-		seek(options.trim_start + calculate_relative_time(e));
+		seek.call(this, this.options.trim_start + calculate_relative_time.call(this, e));
 	}
 
 	function onProgress()
 	{
+		let options = this.options;
+		let vid = this.$vid[0];
 		let gradient = ['to right'];
-		let duration = calculate_duration();
+		let duration = calculate_duration.call(this);
 		for (let i = 0; i < vid.buffered.length; i++)
 		{
 			let relative_start = Math.max(0, vid.buffered.start(i) - options.trim_start);
@@ -228,30 +255,38 @@ $elem.vid('volume',0.5);
 				let from = ' ' + (relative_start * 100 / duration) + '%';
 				let to = ' ' + (relative_end * 100 / duration) + '%';
 				gradient.push(
-					track_bg_unloaded + from,
-					track_bg_loaded + from,
-					track_bg_loaded + to,
-					track_bg_unloaded + to);
+					options.track_bg_unloaded + from,
+					options.track_bg_loaded + from,
+					options.track_bg_loaded + to,
+					options.track_bg_unloaded + to);
 			}
 		}
-		$bar.css('background-image', 'linear-gradient(' + gradient.join(',') + ')');
+		this.$el.find('.vid-ctrl-bar').css('background-image', 'linear-gradient(' + gradient.join(',') + ')');
 	}
 
 	Plugin.prototype.init = function ()
 	{
 		let _this = this;
-		$vid = $('<video></video>').appendTo($el);
-		vid = $vid[0];
-		$controls = $('<div class="vid-controls">\
+		let options = this.options;
+		let $el = this.$el;
+		this.$vid = $(options.audio ? '<audio>' : '<video>').appendTo($el);
+		let $vid = this.$vid;
+		if (this.options.audio)
+		{
+			$el.addClass('vid-is-audio');
+			if (this.options.audio_equalizer)
+			{
+				let $eqalizer = $('<div class="vid-equalizer"></div>').appendTo($el);
+				for (let i = 0; i < this.options.audio_equalizer_bars; i++)
+					$eqalizer.append('<i></i>');
+			}
+		}
+		$('<div class="vid-controls">\
 				<div class="vid-ctrl-play"><span class="vid-btn icon icon-play"></span><span class="vid-btn icon icon-pause"></span><span class="vid-btn icon icon-reload"></span></div>\
 				<div class="vid-ctrl-time"></div>\
 				<div class="vid-ctrl-vol"><span class="vid-btn icon icon-volume"></span><span class="vid-btn icon icon-volume_mute"></span><input class="vid-ctrl-volume-input" type="range" min="0" max="1" step="0.01" orient="vertical"/></div>\
-				<div class="vid-ctrl-track" title=" "><div class="vid-ctrl-bar"></div><div class="vid-ctrl-thumb"></div></div>\
+				<div class="vid-ctrl-track"><div class="vid-ctrl-bar"></div><div class="vid-ctrl-thumb"></div><div class="vid-ctrl-tooltip"></div></div>\
 			</div>').appendTo($el);
-		$track = $controls.find('.vid-ctrl-track');
-		$bar = $controls.find('.vid-ctrl-bar');
-		$thumb = $controls.find('.vid-ctrl-thumb');
-		$vol = $controls.find('.vid-ctrl-volume-input');
 		let media_fragment_rx = /#t=([\d:.]+)(?:,([\d:.]+))?/;
 		if (media_fragment_rx.test(options.src))
 		{
@@ -275,24 +310,24 @@ $elem.vid('volume',0.5);
 			$vid.on('contextmenu', function(e) {
 				e.preventDefault();
 			});
-		let $play = $controls.find('.vid-ctrl-play');
+		let $play = $el.find('.vid-ctrl-play');
 		$play.find('.icon-pause').click($.proxy(this.stop, this));
 		$play.find('.icon-play').click($.proxy(this.play, this));
 		$play.find('.icon-reload').click($.proxy(this.rerun, this));
-		$vol.change($.proxy(onVolumeChange, this));
-		$track.on('mousedown', $.proxy(onTrackDown, this)).on('mousemove mouseover', $.proxy(onTrackMove, this)).on('mouseup', $.proxy(onTrackUp, this));
-		$(window).on('keydown', $.proxy(onKey, this));
+		$el.find('.vid-ctrl-volume-input').change($.proxy(onVolumeChange, this));
+		$el.find('.vid-ctrl-track').on('mousedown', $.proxy(onTrackDown, this)).on('mouseenter mousemove', $.proxy(onTrackMove, this)).on('mouseup', $.proxy(onTrackUp, this));
+		$el.on('keydown', $.proxy(onKey, this));
 		$el.addClass('vid-player vid-paused');
-		let interval = setInterval(function ()
+		this.interval = setInterval($.proxy(function ()
 		{
-			if (!$vid || !$vid.parent())
-				return clearInterval(interval);
-			if (!$vid.is(':visible'))
+			if (!this.$el || !this.$el.parent())
+				return clearInterval(this.interval);
+			if (!this.$el.is(':visible'))
 				return;
-			onProgress.call(_this);
-			onTimeupdate.call(_this);
-		}, 100);
-		onTimeupdate();
+			onProgress.call(this);
+			onTimeupdate.call(this);
+		}, this), 300);
+		onTimeupdate.call(_this);
 	};
 
 	// A really lightweight plugin wrapper around the constructor,
